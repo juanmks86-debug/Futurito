@@ -14,7 +14,9 @@ const SYN = {
   autos: "mecanica", auto: "mecanica", moto: "motos", heladera: "refrigeracion", heladeras: "refrigeracion", ropa: "costura", coser: "costura", celulares: "celular", numeros: "numero", mates: "matematica", leyes: "ley", abogado: "derecho", turistas: "turismo",
 };
 const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ");
-const stem = (w) => (w.length >= 6 ? w.slice(0, 5) : w);
+// Raíz de 6 letras (solo en palabras de 7+): mantiene variantes juntas
+// ("computadora"/"computador") pero evita falsos positivos tipo "progreso" vs "programar".
+const stem = (w) => (w.length >= 7 ? w.slice(0, 6) : w);
 const expand = (w) => (SYN[w] ? [{ s: stem(w), f: w }, { s: stem(SYN[w]), f: SYN[w] }] : [{ s: stem(w), f: w }]);
 const toks = (s) => norm(s).split(/\s+/).filter((w) => w.length >= 2 && !STOP.has(w)).flatMap(expand);
 
@@ -27,7 +29,15 @@ function lev(a, b) {
       d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
   return d[a.length][b.length];
 }
-const same = (x, k) => x.s === k.s || (x.f.length >= 6 && k.f.length >= 6 && lev(x.f, k.f) <= 1);
+// Orden de pruebas: palabra completa > raíz compartida > typo de 1 letra.
+const same = (x, k) =>
+  x.f === k.f ||
+  x.s === k.s ||
+  (x.f.length >= 6 && k.f.length >= 6 && lev(x.f, k.f) <= 1);
+
+// Una carrera entra solo con puntaje mínimo: evita que una palabra suelta y débil
+// ("musica") llene los resultados con propuestas sin sustento.
+const MIN_SCORE = 2;
 
 // Elige 3 resultados bajando el puntaje de los que repiten palabras ya explicadas por otro elegido.
 function diversify(pool, k) {
@@ -43,7 +53,8 @@ function diversify(pool, k) {
   return out;
 }
 
-// Devuelve las 3 carreras con más coincidencias (+2 por cada cuadrante extra cubierto).
+// Devuelve las k carreras con más coincidencias (+2 por cada cuadrante extra cubierto),
+// filtrando las que no alcanzan el puntaje mínimo.
 export function rank(data, k = 3) {
   const entries = {};
   QUADRANTS.forEach((q) => (entries[q.id] = data[q.id].map((w) => ({ w, t: toks(w) }))));
@@ -62,6 +73,6 @@ export function rank(data, k = 3) {
     const cov = Object.keys(hit).length;
     return { career, hit, score: n + (cov > 1 ? 2 * (cov - 1) : 0) };
   })
-    .filter((r) => r.score > 0);
+    .filter((r) => r.score >= MIN_SCORE);
   return diversify(all, k);
 }

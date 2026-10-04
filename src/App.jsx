@@ -3,14 +3,18 @@ import { QUADRANTS, OFERTA_FECHA, EMOJI } from "./data.js";
 import { rank } from "./match.js";
 
 const EMPTY = { p: [], t: [], m: [], v: [] };
-const KEY = "ikigai-v1";
+const KEY = "ikigai-v2";
 const LABELS = { duracion: "Duración", modalidad: "Modalidad", ingreso: "Ingreso", becas: "Becas" };
 
-// Recupera el avance guardado en este dispositivo (si existe).
+const SCREENS = ["hero", "map", "results"];
+const isStrArr = (a) => Array.isArray(a) && a.every((w) => typeof w === "string");
+// Recupera el avance guardado en este dispositivo (si existe y tiene forma válida).
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
-    if (s && s.data && s.screen) return s;
+    const dataOk = s && s.data && QUADRANTS.every((q) => isStrArr(s.data[q.id] || []));
+    const notaOk = s && s.nota && typeof s.nota === "object" && !Array.isArray(s.nota);
+    if (dataOk && notaOk && SCREENS.includes(s.screen)) return { screen: s.screen, data: { ...EMPTY, ...s.data }, nota: s.nota };
   } catch {}
   return { screen: "hero", data: EMPTY, nota: {} };
 }
@@ -110,7 +114,7 @@ function Quadrant({ q, words, onChange }) {
   const full = words.length >= 12;
   const add = () => {
     const v = text.trim().replace(/,$/, "");
-    if (v && !words.includes(v) && !full) onChange([...words, v]);
+    if (v && !words.some((w) => w.toLowerCase() === v.toLowerCase()) && !full) onChange([...words, v]);
     setText("");
   };
   const sug = q.ej.filter((e) => !words.includes(e)).slice(0, 6);
@@ -145,6 +149,8 @@ function MapScreen({ data, setData, onSee }) {
   const [sel, setSel] = useState("p");
   const q = QUADRANTS.find((x) => x.id === sel);
   const total = Object.values(data).flat().length;
+  const ready = QUADRANTS.every((x) => data[x.id].length >= 1);
+  const missing = QUADRANTS.filter((x) => !data[x.id].length).map((x) => x.t);
   return (
     <section>
       <h2>Mi mapa de Ikigai</h2>
@@ -159,8 +165,8 @@ function MapScreen({ data, setData, onSee }) {
       </div>
       <Quadrant key={sel} q={q} words={data[sel]} onChange={(w) => setData({ ...data, [sel]: w })} />
       <div className="bar no-print">
-        <span role="status">{total < 4 ? `${total} de 4 palabras mínimas` : `${total} palabras`}</span>
-        <button className="btn" disabled={total < 4} onClick={onSee}>Ver mis caminos</button>
+        <span role="status">{ready ? `${total} palabras` : `Falta: ${missing.join(" · ")}`}</span>
+        <button className="btn" disabled={!ready} onClick={onSee}>Ver mis caminos</button>
       </div>
     </section>
   );
@@ -192,6 +198,9 @@ function Results({ data, nota, setNota, onBack, onReset }) {
   const [n, setN] = useState(3);
   const results = useMemo(() => rank(data, n), [data, n]);
   const [note, setNote] = useState("");
+  useEffect(() => {
+    if (nota.camino && !results.some((r) => r.career.nombre === nota.camino)) setNota({ ...nota, camino: "" });
+  }, [results]); // eslint-disable-line react-hooks/exhaustive-deps
   const compartir = async () => {
     const text = "Mis caminos para explorar según mi mapa de Ikigai:\n" + results.map((r) => `• ${r.career.nombre} (${r.career.tipo})`).join("\n");
     try {
@@ -201,7 +210,7 @@ function Results({ data, nota, setNota, onBack, onReset }) {
   };
   return (
     <section>
-      <h2>Tus caminos para explorar</h2>
+      <h2 aria-live="polite">Tus caminos para explorar</h2>
       <p className="tip">Son pistas, no un veredicto. Las opciones salen de la oferta de Jujuy: confirmá requisitos, cupos e inscripciones en cada institución. Oferta cargada en {OFERTA_FECHA}.</p>
       {results.length === 0 && (
         <div className="empty">Todavía no encontramos coincidencias. Probá agregar palabras más concretas, como actividades, materias o cosas que hacés seguido, y volvé a intentar.</div>
