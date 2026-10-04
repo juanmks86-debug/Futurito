@@ -34,6 +34,16 @@ const RAW = [
 ["Logística, mantenimiento y seguridad industrial","Tecnicaturas Superiores en Logística Empresarial, Mantenimiento Industrial e Higiene y Seguridad en el Trabajo","logistica transporte camion almacen mantenimiento seguridad industria maquina prevenir riesgo stock","IES (Tecnicaturas Superiores)"],
 ["Turismo, hotelería y gastronomía","Licenciatura en Turismo, Tecnicaturas Superiores en Turismo, Hotelería y Cocinas Regionales y Cultura Alimentaria","turismo viajar hotel cocinar comida guia cultura tradicion cocina gastronomia turistas atender","UNJu · Facultad de Humanidades y Ciencias Sociales; IES (Tecnicaturas Superiores)"],
 ["Derecho, política y gestión pública","Abogacía, Licenciatura y Profesorado en Ciencia Política, Tecnicaturas Superiores en Administración Pública y Gestión Jurídica","justicia ley debatir politica derecho defender gobierno leyes publico tramites ciudadania argumentar","UNJu · Escuela Superior de Ciencias Jurídicas y Políticas; IES (Tecnicaturas y profesorado)"],
+["Reparación de PC y celulares","Curso de formación profesional: Reparación de PC y dispositivos móviles","reparar arreglar computadora celular hardware tecnico electronica pantalla bateria","Instituto de capacitación (oferta provincial)",true],
+["Redes y cámaras de seguridad (oficio)","Curso de formación profesional: Instalación de redes y cámaras de seguridad","redes camaras instalar seguridad wifi internet cableado vigilancia","Instituto de capacitación (oferta provincial)",true],
+["Marketing digital para emprendedores","Curso de formación profesional: Marketing digital y gestión de redes para emprendedores","marketing redes contenido vender emprender instagram publicidad negocio foto video","Instituto de capacitación (oferta provincial)",true],
+["Electricidad domiciliaria e industrial","Curso de formación profesional: Electricidad domiciliaria e industrial","electricidad instalar arreglar cables luz circuito industrial","Instituto de capacitación (oferta provincial)",true],
+["Refrigeración y aire acondicionado","Curso de formación profesional: Refrigeración y aire acondicionado","refrigeracion aire acondicionado heladera frio clima arreglar instalar","Instituto de capacitación (oferta provincial)",true],
+["Mecánica de motos y automotores","Curso de formación profesional: Mecánica de motos y automotores","mecanica motos autos motor arreglar taller vehiculos","Instituto de capacitación (oferta provincial)",true],
+["Durlock y soldadura","Cursos de formación profesional: Durlock y Soldadura","durlock soldadura construir obra casa metal herreria","Instituto de capacitación (oferta provincial)",true],
+["Cocina regional, pastelería y panadería","Cursos de formación profesional: Cocina regional, Pastelería y Panadería","cocinar cocina pasteleria panaderia torta pan comida postres regional","Instituto de capacitación (oferta provincial)",true],
+["Turismo local: baqueano y senderismo","Cursos de formación profesional: Emprendimientos turísticos, Baqueano local y Senderismo","turismo baqueano senderismo guia caminata montana naturaleza aventura emprender","Instituto de capacitación (oferta provincial)",true],
+["Corte y confección / textil","Curso de formación profesional: Corte y confección / Textil","coser costura ropa disenar textil moda tejer confeccion","Instituto de capacitación (oferta provincial)",true],
 ];
 
 const PASOS = [
@@ -55,7 +65,20 @@ const EXTRA = {
   "Derecho, política y gestión pública": "seguridad derechos",
 };
 
-export const CAREERS = RAW.map(([nombre, tipo, claves, donde]) => ({ nombre, tipo, claves: (claves + " " + (EXTRA[nombre] || "")).trim().split(/\s+/), pasos: PASOS, donde }));
+// Datos prácticos opcionales por área (se muestran en los resultados cuando existen). Ejemplo:
+// "Enfermería": { duracion: "3 años", modalidad: "Presencial", ingreso: "Secundario completo", becas: "Consultar" }
+const INFO = {};
+
+// Fecha de carga de la oferta (se muestra en los resultados).
+export const OFERTA_FECHA = "octubre de 2026";
+
+const PASOS_FP = [
+  "Averiguá fechas de inscripción, duración y requisitos del curso.",
+  "Hablá con alguien que trabaje de este oficio y preguntale cómo empezó.",
+  "Probá hacer un trabajo chico del oficio para ver si te gusta de cerca.",
+];
+
+export const CAREERS = RAW.map(([nombre, tipo, claves, donde, fp]) => ({ nombre, tipo, fp, info: INFO[nombre], claves: (claves + " " + (EXTRA[nombre] || "")).trim().split(/\s+/), pasos: fp ? PASOS_FP : PASOS, donde }));
 
 // Ayudas para quien no sabe qué escribir.
 const EJ = {
@@ -72,3 +95,20 @@ const PREG = {
 };
 // w: peso en el puntaje (Misión y Valor cuentan más que gustos y habilidades).
 export const QUADRANTS = BASE.map((q) => ({ ...q, ej: EJ[q.id], pregunta: PREG[q.id], w: { p: 1, t: 1, m: 1.5, v: 1.5 }[q.id] }));
+
+// Ícono por área (emoji: simple y cercano, aunque se ve distinto según el celular).
+export const EMOJI = {
+  "Informática y programación": "💻", "Ciencia de datos e IA": "📊", "Videojuegos y diseño digital": "🎮",
+  "Soporte, redes e infraestructura TI": "🛜", "Robótica, automatización y mecatrónica": "🤖", "Ingeniería civil e industrial": "🏗️",
+  "Minería, geología y energías": "⛏️", "Química y alimentos": "🧪", "Agro y producción agropecuaria": "🌾",
+  "Ambiente y biología": "🌿", "Medicina": "🩺", "Enfermería": "💉", "Laboratorio, farmacia y odontología": "🔬",
+  "Salud pública y acompañamiento": "🤝", "Educación inicial, primaria y especial": "🍎", "Profesorados de ciencias exactas y tecnología": "📐",
+  "Humanidades y lenguas": "📚", "Psicología, trabajo social y familia": "🧠", "Antropología, historia y cultura": "🏺",
+  "Comunicación y edición": "🎙️", "Arte y expresión": "🎨", "Deporte y educación física": "⚽",
+  "Administración, contabilidad y economía": "📈", "Logística, mantenimiento y seguridad industrial": "🚚",
+  "Turismo, hotelería y gastronomía": "🧳", "Derecho, política y gestión pública": "⚖️",
+  "Reparación de PC y celulares": "🔧", "Redes y cámaras de seguridad (oficio)": "📹", "Marketing digital para emprendedores": "📣",
+  "Electricidad domiciliaria e industrial": "⚡", "Refrigeración y aire acondicionado": "❄️", "Mecánica de motos y automotores": "🏍️",
+  "Durlock y soldadura": "🧱", "Cocina regional, pastelería y panadería": "🥖", "Turismo local: baqueano y senderismo": "🥾",
+  "Corte y confección / textil": "🧵",
+};

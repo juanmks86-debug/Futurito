@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { QUADRANTS } from "./data.js";
+import { QUADRANTS, OFERTA_FECHA, EMOJI } from "./data.js";
 import { rank } from "./match.js";
 
 const EMPTY = { p: [], t: [], m: [], v: [] };
 const KEY = "ikigai-v1";
+const LABELS = { duracion: "Duración", modalidad: "Modalidad", ingreso: "Ingreso", becas: "Becas" };
 
 // Recupera el avance guardado en este dispositivo (si existe).
 function load() {
@@ -11,7 +12,7 @@ function load() {
     const s = JSON.parse(localStorage.getItem(KEY));
     if (s && s.data && s.screen) return s;
   } catch {}
-  return { screen: "hero", data: EMPTY };
+  return { screen: "hero", data: EMPTY, nota: {} };
 }
 
 const ICONS = {
@@ -26,20 +27,29 @@ const Icon = ({ id }) => (
   </svg>
 );
 
-// Diagrama: cada círculo gana color con las palabras de su cuadrante; el centro se enciende al completar los cuatro.
-function Diagram({ counts, width }) {
-  const op = (id) => 0.18 + 0.62 * Math.min(counts[id] / 4, 1);
-  const done = QUADRANTS.every((q) => counts[q.id] >= 3);
-  const pos = { p: [102, 102], t: [138, 102], m: [102, 138], v: [138, 138] };
+const DEMO = { p: ["videojuegos", "animales", "música"], t: ["explicar cosas", "organizar", "dibujar"], m: ["residuos", "turismo", "conectividad"], v: ["reparar cosas", "clases", "fotos"] };
+const POS = { p: [105, 105, 75, 52], t: [195, 105, 225, 52], m: [105, 195, 75, 212], v: [195, 195, 225, 212] };
+const clip = (s, n = 15) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+// El mapa es el protagonista: cada círculo se llena con las palabras de su cuadrante y el centro se enciende al completar los cuatro.
+function Mandala({ data, sel, setSel }) {
+  const done = QUADRANTS.every((q) => data[q.id].length >= 3);
   return (
-    <svg viewBox="0 0 240 240" width={width} className="diagram" role="img"
-      aria-label={`Mapa de Ikigai: ${QUADRANTS.map((q) => `${q.t} ${counts[q.id]}`).join(", ")} palabras`}>
-      <g style={{ mixBlendMode: "multiply" }}>
+    <svg viewBox="0 0 300 300" className="mandala" role="img" aria-label={`Mapa de Ikigai: ${QUADRANTS.map((q) => `${q.t} ${data[q.id].length}`).join(", ")} palabras`}>
+      <g style={{ mixBlendMode: "var(--blend)" }}>
         {QUADRANTS.map((q) => (
-          <circle key={q.id} cx={pos[q.id][0]} cy={pos[q.id][1]} r="62" fill={q.k} style={{ opacity: op(q.id), transition: "opacity .4s" }} />
+          <circle key={q.id} cx={POS[q.id][0]} cy={POS[q.id][1]} r="90" fill={q.k} className={setSel ? "cir tap" : "cir"}
+            style={{ opacity: 0.22 + 0.55 * Math.min(data[q.id].length / 4, 1) }}
+            stroke={sel === q.id ? "var(--ink)" : "none"} strokeWidth="3" onClick={setSel ? () => setSel(q.id) : undefined} />
         ))}
       </g>
-      <circle cx="120" cy="120" r="15" fill={done ? "var(--c2)" : "var(--bg)"} stroke="var(--ink)" strokeWidth={done ? 0 : 1.5} style={{ transition: "fill .4s" }} />
+      {QUADRANTS.map((q) => (
+        <g key={q.id} textAnchor="middle" fill="var(--ink)" pointerEvents="none">
+          <text x={POS[q.id][2]} y={POS[q.id][3]} className="ct">{q.t}</text>
+          {data[q.id].slice(-3).map((w, i) => <text key={w} x={POS[q.id][2]} y={POS[q.id][3] + 18 + i * 15} className="cw">{clip(w)}</text>)}
+        </g>
+      ))}
+      <circle cx="150" cy="150" r="16" className={done ? "core on" : "core"} />
     </svg>
   );
 }
@@ -65,12 +75,28 @@ function Breath() {
   );
 }
 
+const STEPS = [["hero", "Inicio"], ["map", "Mapa"], ["results", "Caminos"]];
+function Steps({ screen, go }) {
+  const cur = STEPS.findIndex((s) => s[0] === screen);
+  return (
+    <nav className="steps-bar" aria-label="Progreso">
+      <ol>
+        {STEPS.map(([id, t], i) => (
+          <li key={id} className={i <= cur ? "done" : ""} aria-current={i === cur ? "step" : undefined}>
+            <button type="button" disabled={i > cur} onClick={() => go(id)}>{t}</button>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
 function Hero({ onStart }) {
   return (
     <section className="hero">
-      <Diagram counts={{ p: 4, t: 4, m: 4, v: 4 }} width="min(260px,70%)" />
       <h1>Descubrí qué estudiar a partir de lo que te mueve</h1>
       <p>Completá tu mapa de Ikigai con palabras sueltas. En 5 minutos salís con 3 caminos para explorar.</p>
+      <Mandala data={DEMO} />
       <div className="actions">
         <button className="btn" onClick={onStart}>Empezar</button>
         <Breath />
@@ -116,18 +142,22 @@ function Quadrant({ q, words, onChange }) {
 }
 
 function MapScreen({ data, setData, onSee }) {
-  const counts = Object.fromEntries(QUADRANTS.map((q) => [q.id, data[q.id].length]));
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const [sel, setSel] = useState("p");
+  const q = QUADRANTS.find((x) => x.id === sel);
+  const total = Object.values(data).flat().length;
   return (
     <section>
       <h2>Mi mapa de Ikigai</h2>
-      <p className="tip">Escribí palabras sueltas o tocá las ideas. Si no sabés por dónde empezar, probá con las del final de cada cuadro. Nada sale de tu celular.</p>
-      <Diagram counts={counts} width={150} />
-      <div className="grid">
-        {QUADRANTS.map((q) => (
-          <Quadrant key={q.id} q={q} words={data[q.id]} onChange={(w) => setData({ ...data, [q.id]: w })} />
+      <p className="tip">Tocá un círculo para escribir en ese cuadrante. Nada sale de tu celular.</p>
+      <Mandala data={data} sel={sel} setSel={setSel} />
+      <div className="tabs">
+        {QUADRANTS.map((x) => (
+          <button key={x.id} type="button" className="tab" aria-pressed={x.id === sel} style={{ "--k": x.k }} onClick={() => setSel(x.id)}>
+            <Icon id={x.id} /><span>{x.t}</span><b>{data[x.id].length}</b>
+          </button>
         ))}
       </div>
+      <Quadrant key={sel} q={q} words={data[sel]} onChange={(w) => setData({ ...data, [sel]: w })} />
       <div className="bar no-print">
         <span role="status">{total < 4 ? `${total} de 4 palabras mínimas` : `${total} palabras`}</span>
         <button className="btn" disabled={total < 4} onClick={onSee}>Ver mis caminos</button>
@@ -136,8 +166,31 @@ function MapScreen({ data, setData, onSee }) {
   );
 }
 
-function Results({ data, onBack, onReset }) {
-  const results = useMemo(() => rank(data), [data]);
+function Reflect({ results, nota, setNota }) {
+  const set = (k, v) => setNota({ ...nota, [k]: v });
+  if (!results.length) return null;
+  return (
+    <section className="reflect" aria-labelledby="refl">
+      <h3 id="refl">Para pensar esta semana</h3>
+      <label>¿Cuál de estos caminos te da más curiosidad?
+        <select value={nota.camino || ""} onChange={(e) => set("camino", e.target.value)}>
+          <option value="">Elegí uno</option>
+          {results.map((r) => <option key={r.career.nombre}>{r.career.nombre}</option>)}
+        </select>
+      </label>
+      <label>¿Con quién podrías hablar de esto?
+        <input value={nota.persona || ""} maxLength={80} onChange={(e) => set("persona", e.target.value)} />
+      </label>
+      <label>Mi próximo paso
+        <input value={nota.paso || ""} maxLength={120} onChange={(e) => set("paso", e.target.value)} />
+      </label>
+    </section>
+  );
+}
+
+function Results({ data, nota, setNota, onBack, onReset }) {
+  const [n, setN] = useState(3);
+  const results = useMemo(() => rank(data, n), [data, n]);
   const [note, setNote] = useState("");
   const compartir = async () => {
     const text = "Mis caminos para explorar según mi mapa de Ikigai:\n" + results.map((r) => `• ${r.career.nombre} (${r.career.tipo})`).join("\n");
@@ -149,27 +202,41 @@ function Results({ data, onBack, onReset }) {
   return (
     <section>
       <h2>Tus caminos para explorar</h2>
-      <p className="tip no-print">Son pistas, no un veredicto. Las carreras salen de la oferta de Jujuy: confirmá requisitos y cupos en cada institución.</p>
+      <p className="tip">Son pistas, no un veredicto. Las opciones salen de la oferta de Jujuy: confirmá requisitos, cupos e inscripciones en cada institución. Oferta cargada en {OFERTA_FECHA}.</p>
       {results.length === 0 && (
         <div className="empty">Todavía no encontramos coincidencias. Probá agregar palabras más concretas, como actividades, materias o cosas que hacés seguido, y volvé a intentar.</div>
       )}
-      {results.map(({ career, hit }, n) => (
-        <article className={n === 0 ? "res top" : "res"} key={career.nombre}>
-          <h3>{career.nombre}</h3>
-          <div className="dots" role="img" aria-label={`Respaldado por ${Object.keys(hit).length} de 4 cuadrantes`}>
-            {QUADRANTS.map((q) => <i key={q.id} className={hit[q.id] ? "on" : ""} style={{ "--k": q.k }} />)}
-          </div>
-          <p className="kind">Carreras: {career.tipo}</p>
-          {career.donde && <p className="kind">Dónde estudiarla: {career.donde}</p>}
-          <ul className="why">
-            {QUADRANTS.filter((q) => hit[q.id]).map((q) => (
-              <li key={q.id} style={{ "--k": q.k }}><span className="dot" />{q.t}: {[...new Set(hit[q.id])].join(", ")}</li>
-            ))}
-          </ul>
-          <ol className="steps">{career.pasos.map((s) => <li key={s}>{s}</li>)}</ol>
-        </article>
-      ))}
+      {results.map(({ career, hit, score }, idx) => {
+        const pct = Math.round(Math.min(score / 8, 1) * 100);
+        return (
+          <article className={idx === 0 ? "res top" : "res"} key={career.nombre}>
+            <div className="rh">
+              <span className="emo" aria-hidden="true">{EMOJI[career.nombre]}</span>
+              <h3>{career.nombre}</h3>
+            </div>
+            <div className="meter" role="img" aria-label={`Afinidad ${pct}%`}><i style={{ width: pct + "%" }} /></div>
+            <div className="dots" role="img" aria-label={`Respaldado por ${Object.keys(hit).length} de 4 cuadrantes`}>
+              {QUADRANTS.map((q) => <i key={q.id} className={hit[q.id] ? "on" : ""} style={{ "--k": q.k }} />)}
+            </div>
+            <p className="kind">{career.fp ? "Formación profesional" : "Carreras"}: {career.tipo.replace(/^Cursos? de formación profesional: /, "")}</p>
+            {career.donde && <p className="kind">Dónde estudiarla: {career.donde}</p>}
+            {career.info && (
+              <ul className="why">
+                {Object.entries(career.info).map(([k, v]) => <li key={k}>{LABELS[k] || k}: {v}</li>)}
+              </ul>
+            )}
+            <ul className="why">
+              {QUADRANTS.filter((q) => hit[q.id]).map((q) => (
+                <li key={q.id} style={{ "--k": q.k }}><span className="dot" />{q.t}: {[...new Set(hit[q.id])].join(", ")}</li>
+              ))}
+            </ul>
+            <ol className="steps">{career.pasos.map((s) => <li key={s}>{s}</li>)}</ol>
+          </article>
+        );
+      })}
+      <Reflect results={results} nota={nota} setNota={setNota} />
       <div className="actions no-print">
+        {results.length === n && n < 6 && <button className="btn alt" onClick={() => setN(6)}>Ver más opciones</button>}
         {results.length > 0 && <button className="btn" onClick={compartir}>Compartir</button>}
         {results.length > 0 && <button className="btn alt" onClick={() => window.print()}>Guardar como PDF</button>}
         <button className="btn alt" onClick={onBack}>Editar mi mapa</button>
@@ -184,19 +251,21 @@ export default function App() {
   const [init] = useState(load);
   const [screen, setScreen] = useState(init.screen);
   const [data, setData] = useState(init.data);
+  const [nota, setNota] = useState(init.nota || {});
   useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify({ screen, data })); } catch {}
-  }, [screen, data]);
+    try { localStorage.setItem(KEY, JSON.stringify({ screen, data, nota })); } catch {}
+  }, [screen, data, nota]);
   useEffect(() => window.scrollTo(0, 0), [screen]);
   return (
-    <>
-      <header className="band">Hackatón Tecno-Productiva · Jujuy</header>
-      <main>
+    <div className={`app ${screen === "results" ? "results" : screen === "map" ? "map" : "hero"}`}>
+      <header><div className="top">Hackatón Tecno-Productiva · Jujuy</div><div className="guarda" aria-hidden="true" /></header>
+      <Steps screen={screen} go={setScreen} />
+      <main key={screen}>
         {screen === "hero" && <Hero onStart={() => setScreen("map")} />}
         {screen === "map" && <MapScreen data={data} setData={setData} onSee={() => setScreen("results")} />}
-        {screen === "results" && <Results data={data} onBack={() => setScreen("map")} onReset={() => { setData(EMPTY); setScreen("hero"); }} />}
+        {screen === "results" && <Results data={data} nota={nota} setNota={setNota} onBack={() => setScreen("map")} onReset={() => { setData(EMPTY); setNota({}); setScreen("hero"); }} />}
       </main>
-      <footer className="band two">Tu mapa se guarda solo en este dispositivo</footer>
-    </>
+      <footer><div className="guarda" aria-hidden="true" /><p>Tu mapa se guarda solo en este dispositivo</p></footer>
+    </div>
   );
 }

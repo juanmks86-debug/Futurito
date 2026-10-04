@@ -10,7 +10,8 @@ const SYN = {
   maestra: "ensenar", maestro: "ensenar", profe: "ensenar", dibujo: "dibujar", pintar: "dibujar", fotos: "foto", fotografia: "foto",
   mascotas: "animal", animales: "animal", perros: "animal", plantas: "planta", huerta: "cultivo", basura: "residuo",
   ejercicio: "deporte", deportes: "deporte", pelota: "futbol", gente: "personas", enfermero: "enfermeria", doctor: "medicina",
-  medico: "medicina", numeros: "numero", mates: "matematica", leyes: "ley", abogado: "derecho", turistas: "turismo",
+  medico: "medicina", pan: "panaderia", tortas: "pasteleria", torta: "pasteleria", soldar: "soldadura", caminatas: "senderismo", trekking: "senderismo",
+  autos: "mecanica", auto: "mecanica", moto: "motos", heladera: "refrigeracion", heladeras: "refrigeracion", ropa: "costura", coser: "costura", celulares: "celular", numeros: "numero", mates: "matematica", leyes: "ley", abogado: "derecho", turistas: "turismo",
 };
 const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ");
 const stem = (w) => (w.length >= 6 ? w.slice(0, 5) : w);
@@ -29,10 +30,10 @@ function lev(a, b) {
 const same = (x, k) => x.s === k.s || (x.f.length >= 6 && k.f.length >= 6 && lev(x.f, k.f) <= 1);
 
 // Elige 3 resultados bajando el puntaje de los que repiten palabras ya explicadas por otro elegido.
-function diversify(pool) {
+function diversify(pool, k) {
   const words = (r) => new Set(Object.values(r.hit).flat());
   const out = [];
-  while (out.length < 3 && pool.length) {
+  while (out.length < k && pool.length) {
     const best = pool
       .map((r) => ({ r, s: r.score * Math.pow(0.6, out.filter((o) => [...words(o)].some((w) => words(r).has(w))).length) }))
       .sort((a, b) => b.s - a.s)[0];
@@ -43,7 +44,7 @@ function diversify(pool) {
 }
 
 // Devuelve las 3 carreras con más coincidencias (+2 por cada cuadrante extra cubierto).
-export function rank(data) {
+export function rank(data, k = 3) {
   const entries = {};
   QUADRANTS.forEach((q) => (entries[q.id] = data[q.id].map((w) => ({ w, t: toks(w) }))));
   const all = CAREERS.map((career) => {
@@ -62,5 +63,5 @@ export function rank(data) {
     return { career, hit, score: n + (cov > 1 ? 2 * (cov - 1) : 0) };
   })
     .filter((r) => r.score > 0);
-  return diversify(all);
+  return diversify(all, k);
 }
