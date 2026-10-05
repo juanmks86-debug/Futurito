@@ -79,6 +79,25 @@ function Breath() {
   );
 }
 
+const CONFETTI_COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)"];
+// Celebración ligera al completar el mapa (solo CSS, respeta prefers-reduced-motion).
+function Confetti() {
+  const pcs = useMemo(() => Array.from({ length: 40 }, (_, i) => ({
+    left: Math.random() * 100,
+    dur: 2.2 + Math.random() * 2,
+    delay: Math.random() * 0.5,
+    c: CONFETTI_COLORS[i % 4],
+    round: i % 3 === 0,
+  })), []);
+  return (
+    <div aria-hidden="true">
+      {pcs.map((p, i) => (
+        <i key={i} className="cf" style={{ left: p.left + "vw", animationDuration: p.dur + "s", animationDelay: p.delay + "s", background: p.c, borderRadius: p.round ? "50%" : "2px" }} />
+      ))}
+    </div>
+  );
+}
+
 const STEPS = [["hero", "Inicio"], ["map", "Mapa"], ["results", "Caminos"]];
 function Steps({ screen, go }) {
   const cur = STEPS.findIndex((s) => s[0] === screen);
@@ -87,7 +106,7 @@ function Steps({ screen, go }) {
       <ol>
         {STEPS.map(([id, t], i) => (
           <li key={id} className={i <= cur ? "done" : ""} aria-current={i === cur ? "step" : undefined}>
-            <button type="button" disabled={i > cur} onClick={() => go(id)}>{t}</button>
+            <button type="button" disabled={i > cur} onClick={() => go(id)}><i>{i + 1}</i><span>{t}</span></button>
           </li>
         ))}
       </ol>
@@ -151,6 +170,8 @@ function MapScreen({ data, setData, onSee }) {
   const total = Object.values(data).flat().length;
   const ready = QUADRANTS.every((x) => data[x.id].length >= 1);
   const missing = QUADRANTS.filter((x) => !data[x.id].length).map((x) => x.t);
+  const [party, setParty] = useState(false);
+  useEffect(() => { if (ready && !party) setParty(true); }, [ready]);
   return (
     <section>
       <h2>Mi mapa de Ikigai</h2>
@@ -168,6 +189,8 @@ function MapScreen({ data, setData, onSee }) {
         <span role="status">{ready ? `${total} palabras` : `Falta: ${missing.join(" · ")}`}</span>
         <button className="btn" disabled={!ready} onClick={onSee}>Ver mis caminos</button>
       </div>
+      {party && <Confetti />}
+      {party && <p className="toast" role="status">¡Mapa completo! Ya podés ver tus caminos ✨</p>}
     </section>
   );
 }
@@ -194,10 +217,48 @@ function Reflect({ results, nota, setNota }) {
   );
 }
 
+function Detail({ r, onClose }) {
+  const { career, hit } = r;
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={career.nombre} onClick={(e) => e.stopPropagation()}>
+        <div className="rh">
+          <span className="emo" aria-hidden="true">{EMOJI[career.nombre]}</span>
+          <h3>{career.nombre}</h3>
+        </div>
+        <p className="kind">{career.fp ? "Formación profesional" : "Carreras"}: {career.tipo.replace(/^Cursos? de formación profesional: /, "")}</p>
+        {career.donde && <p className="kind">Dónde estudiarla: {career.donde}</p>}
+        {career.info && (
+          <ul className="why">
+            {Object.entries(career.info).map(([k, v]) => <li key={k}>{LABELS[k] || k}: {v}</li>)}
+          </ul>
+        )}
+        <h4>Por qué aparece en tu mapa</h4>
+        <ul className="why">
+          {QUADRANTS.filter((q) => hit[q.id]).map((q) => (
+            <li key={q.id} style={{ "--k": q.k }}><span className="dot" />{q.t}: {[...new Set(hit[q.id])].join(", ")}</li>
+          ))}
+        </ul>
+        <h4>Pasos para explorarla</h4>
+        <ol className="steps">{career.pasos.map((s) => <li key={s}>{s}</li>)}</ol>
+        <div className="actions">
+          <button className="btn" onClick={onClose}>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Results({ data, nota, setNota, onBack, onReset }) {
   const [n, setN] = useState(3);
   const results = useMemo(() => rank(data, n), [data, n]);
   const [note, setNote] = useState("");
+  const [open, setOpen] = useState(null);
   useEffect(() => {
     if (nota.camino && !results.some((r) => r.career.nombre === nota.camino)) setNota({ ...nota, camino: "" });
   }, [results]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -240,9 +301,13 @@ function Results({ data, nota, setNota, onBack, onReset }) {
               ))}
             </ul>
             <ol className="steps">{career.pasos.map((s) => <li key={s}>{s}</li>)}</ol>
+            <div className="ract no-print">
+              <button className="btn alt sm" onClick={() => setOpen({ career, hit })}>Ver detalle</button>
+            </div>
           </article>
         );
       })}
+      {open && <Detail r={open} onClose={() => setOpen(null)} />}
       <Reflect results={results} nota={nota} setNota={setNota} />
       <div className="actions no-print">
         {results.length === n && n < 6 && <button className="btn alt" onClick={() => setN(6)}>Ver más opciones</button>}
