@@ -329,7 +329,7 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify({ screen, data, nota })); } catch {}
   }, [screen, data, nota]);
-  useEffect(() => window.scrollTo(0, 0), [screen]);
+  useEffect(() => { window.scrollTo(0, 0); }, [screen]);
   return (
     <div className={`app ${screen === "results" ? "results" : screen === "map" ? "map" : "hero"}`}>
       <header><div className="top">Hackatón Tecno-Productiva · Jujuy</div><div className="guarda" aria-hidden="true" /></header>
