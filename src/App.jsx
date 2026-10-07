@@ -14,9 +14,10 @@ function load() {
     const s = JSON.parse(localStorage.getItem(KEY));
     const dataOk = s && s.data && QUADRANTS.every((q) => isStrArr(s.data[q.id] || []));
     const notaOk = s && s.nota && typeof s.nota === "object" && !Array.isArray(s.nota);
-    if (dataOk && notaOk && SCREENS.includes(s.screen)) return { screen: s.screen, data: { ...EMPTY, ...s.data }, nota: s.nota };
+    const fbOk = !s || !s.fb || (typeof s.fb === "object" && !Array.isArray(s.fb) && Object.values(s.fb).every((v) => v === 1 || v === -1));
+    if (dataOk && notaOk && fbOk && SCREENS.includes(s.screen)) return { screen: s.screen, data: { ...EMPTY, ...s.data }, nota: s.nota, fb: s.fb || {} };
   } catch {}
-  return { screen: "hero", data: EMPTY, nota: {} };
+  return { screen: "hero", data: EMPTY, nota: {}, fb: {} };
 }
 
 const ICONS = {
@@ -164,6 +165,19 @@ function Quadrant({ q, words, onChange }) {
   );
 }
 
+const ONB = "ikigai-onboard";
+function Onboarding() {
+  const [show, setShow] = useState(() => { try { return !localStorage.getItem(ONB); } catch { return false; } });
+  if (!show) return null;
+  const close = () => { try { localStorage.setItem(ONB, "1"); } catch {} setShow(false); };
+  return (
+    <div className="onb no-print" role="note">
+      <p><b>Así funciona:</b> cada círculo es un cuadrante de tu mapa. Empezá por <b>«Lo que amo»</b>: acá van las cosas que hacés cuando nadie te obliga. Escribí palabras sueltas o tocá las ideas que te sugerimos.</p>
+      <button type="button" className="btn sm" onClick={close}>Entendido</button>
+    </div>
+  );
+}
+
 function MapScreen({ data, setData, onSee }) {
   const [sel, setSel] = useState("p");
   const q = QUADRANTS.find((x) => x.id === sel);
@@ -177,6 +191,7 @@ function MapScreen({ data, setData, onSee }) {
       <h2>Mi mapa de Ikigai</h2>
       <p className="tip">Tocá un círculo para escribir en ese cuadrante. Nada sale de tu celular.</p>
       <Mandala data={data} sel={sel} setSel={setSel} />
+      <Onboarding />
       <div className="tabs">
         {QUADRANTS.map((x) => (
           <button key={x.id} type="button" className="tab" aria-pressed={x.id === sel} style={{ "--k": x.k }} onClick={() => setSel(x.id)}>
@@ -254,7 +269,7 @@ function Detail({ r, onClose }) {
   );
 }
 
-function Results({ data, nota, setNota, onBack, onReset }) {
+function Results({ data, nota, setNota, fb, setFb, onBack, onReset }) {
   const [n, setN] = useState(3);
   const results = useMemo(() => rank(data, n), [data, n]);
   const [note, setNote] = useState("");
@@ -303,6 +318,12 @@ function Results({ data, nota, setNota, onBack, onReset }) {
             <ol className="steps">{career.pasos.map((s) => <li key={s}>{s}</li>)}</ol>
             <div className="ract no-print">
               <button className="btn alt sm" onClick={() => setOpen({ career, hit })}>Ver detalle</button>
+              <span className="fb" role="group" aria-label={`¿Te sirvió ${career.nombre}?`}>
+                {[[1, "👍", "Me sirve"], [-1, "👎", "No me sirve"]].map(([v, e, l]) => (
+                  <button key={v} type="button" className="btn alt sm" aria-pressed={fb[career.nombre] === v} aria-label={l}
+                    onClick={() => { const n = { ...fb }; if (n[career.nombre] === v) delete n[career.nombre]; else n[career.nombre] = v; setFb(n); }}>{e}</button>
+                ))}
+              </span>
             </div>
           </article>
         );
@@ -326,9 +347,10 @@ export default function App() {
   const [screen, setScreen] = useState(init.screen);
   const [data, setData] = useState(init.data);
   const [nota, setNota] = useState(init.nota || {});
+  const [fb, setFb] = useState(init.fb || {});
   useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify({ screen, data, nota })); } catch {}
-  }, [screen, data, nota]);
+    try { localStorage.setItem(KEY, JSON.stringify({ screen, data, nota, fb })); } catch {}
+  }, [screen, data, nota, fb]);
   useEffect(() => { window.scrollTo(0, 0); }, [screen]);
   return (
     <div className={`app ${screen === "results" ? "results" : screen === "map" ? "map" : "hero"}`}>
@@ -337,7 +359,7 @@ export default function App() {
       <main key={screen}>
         {screen === "hero" && <Hero onStart={() => setScreen("map")} />}
         {screen === "map" && <MapScreen data={data} setData={setData} onSee={() => setScreen("results")} />}
-        {screen === "results" && <Results data={data} nota={nota} setNota={setNota} onBack={() => setScreen("map")} onReset={() => { setData(EMPTY); setNota({}); setScreen("hero"); }} />}
+        {screen === "results" && <Results data={data} nota={nota} setNota={setNota} fb={fb} setFb={setFb} onBack={() => setScreen("map")} onReset={() => { setData(EMPTY); setNota({}); setFb({}); setScreen("hero"); }} />}
       </main>
       <footer><div className="guarda" aria-hidden="true" /><p>Tu mapa se guarda solo en este dispositivo</p></footer>
     </div>
