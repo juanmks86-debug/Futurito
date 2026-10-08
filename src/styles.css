@@ -23,6 +23,14 @@ html{background:#121A36;scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;font:400 1rem/1.6 Montserrat,system-ui,Arial,sans-serif}
 .top{background:#0F1730;color:#FBF1DA;text-align:center;padding:10px 16px;font-weight:600;font-size:.9rem}
 .guarda{height:14px;background-color:#C2623F;background-size:20px 14px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='14' viewBox='0 0 20 14'%3E%3Cpath d='M10 1l6 6-6 6-6-6z' fill='%23E3A93B'/%3E%3Cpath d='M10 4.5l2.5 2.5-2.5 2.5-2.5-2.5z' fill='%23121A36'/%3E%3C/svg%3E")}
+.firma{opacity:.8;font-size:.78rem}
+.weak-note{border:1px dashed var(--line);border-radius:12px;padding:12px 14px;margin:0 0 16px;color:var(--mute);font-size:.92rem}
+.weak-tag{margin:6px 0 0;font-size:.82rem;font-weight:600;color:var(--mute)}
+.res.top .weak-tag{color:inherit;opacity:.92}
+.linkbtn{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--acc);text-decoration:underline;cursor:pointer}
+.donar{background:#0F1730;color:#FBF1DA;text-align:center;font-size:.8rem;padding:10px 16px 0;display:flex;flex-direction:column;gap:6px;align-items:center}
+.donar .alias{background:none;color:inherit;border:1px solid #FBF1DA66;border-radius:999px;padding:6px 14px;font:600 .78rem Montserrat,sans-serif;cursor:pointer}
+.donar .alias:focus-visible{outline:3px solid #E3A93B;outline-offset:2px}
 footer p{margin:0;background:#0F1730;color:#FBF1DA;text-align:center;font-size:.85rem;padding:12px 16px}
 /* Stepper con números y glow */
 .steps-bar ol{display:flex;gap:10px;list-style:none;margin:0 auto;padding:14px 18px 0;max-width:760px}

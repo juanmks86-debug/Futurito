@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { QUADRANTS, OFERTA_FECHA, EMOJI } from "./data.js";
-import { rank } from "./match.js";
+import { rank, unmatched, isWeak } from "./match.js";
+import { buildFeedbackText } from "./feedback.js";
 
+const ALIAS_MP = "jhonmks.mp";
 const EMPTY = { p: [], t: [], m: [], v: [] };
 const KEY = "ikigai-v2";
 const LABELS = { duracion: "Duración", modalidad: "Modalidad", ingreso: "Ingreso", becas: "Becas" };
@@ -95,6 +97,21 @@ function Confetti() {
       {pcs.map((p, i) => (
         <i key={i} className="cf" style={{ left: p.left + "vw", animationDuration: p.dur + "s", animationDelay: p.delay + "s", background: p.c, borderRadius: p.round ? "50%" : "2px" }} />
       ))}
+    </div>
+  );
+}
+
+function Donar() {
+  const [ok, setOk] = useState(false);
+  const copiar = async () => {
+    try { await navigator.clipboard.writeText(ALIAS_MP); setOk(true); setTimeout(() => setOk(false), 2500); } catch {}
+  };
+  return (
+    <div className="donar no-print">
+      <span>¿Te sirvió? Podés invitarme un cafecito, es voluntario.</span>
+      <button type="button" className="alias" onClick={copiar} aria-label={`Copiar alias de Mercado Pago ${ALIAS_MP}`}>
+        {ok ? "¡Alias copiado!" : `Mercado Pago · ${ALIAS_MP} · Copiar`}
+      </button>
     </div>
   );
 }
@@ -271,7 +288,12 @@ function Detail({ r, onClose }) {
 
 function Results({ data, nota, setNota, fb, setFb, onBack, onReset }) {
   const [n, setN] = useState(3);
-  const results = useMemo(() => rank(data, n), [data, n]);
+  // Los 👎 de antes se aplican al abrir esta pantalla (no al votar, para que la tarjeta no desaparezca de golpe).
+  const [seenFb, setSeenFb] = useState(fb);
+  const results = useMemo(() => rank(data, n, seenFb), [data, n, seenFb]);
+  const sinMatch = useMemo(() => unmatched(data), [data]);
+  const ocultas = Object.keys(seenFb).filter((k) => seenFb[k] === -1);
+  const allWeak = results.length > 0 && results.every((r) => isWeak(r.score));
   const [note, setNote] = useState("");
   const [open, setOpen] = useState(null);
   useEffect(() => {
@@ -284,10 +306,32 @@ function Results({ data, nota, setNota, fb, setFb, onBack, onReset }) {
       else { await navigator.clipboard.writeText(text); setNote("Copiado. Pegalo donde quieras."); }
     } catch {}
   };
+  const mostrarOcultas = () => {
+    const next = { ...fb };
+    ocultas.forEach((k) => { if (next[k] === -1) delete next[k]; });
+    setFb(next);
+    setSeenFb(next);
+  };
+  const enviarFeedback = async () => {
+    const text = buildFeedbackText({ data, fb, sinMatch });
+    try {
+      if (navigator.share) await navigator.share({ title: "Feedback Mapa de Ikigai", text });
+      else { await navigator.clipboard.writeText(text); setNote("Feedback copiado. Pegalo donde quieras enviarlo."); }
+    } catch {}
+  };
   return (
     <section>
       <h2 aria-live="polite">Tus caminos para explorar</h2>
       <p className="tip">Son pistas, no un veredicto. Las opciones salen de la oferta de Jujuy: confirmá requisitos, cupos e inscripciones en cada institución. Oferta cargada en {OFERTA_FECHA}.</p>
+      {allWeak && (
+        <div className="weak-note" role="status">Tus palabras coinciden poco con la oferta. Volvé al mapa y sumá más, sobre todo en <b>Lo que Jujuy necesita</b> y <b>Mi modelo de valor</b>, para obtener caminos más precisos.</div>
+      )}
+      {sinMatch.length > 0 && (
+        <p className="tip no-print" role="status">No pudimos relacionar: {sinMatch.join(", ")}. Probá con actividades o cosas más concretas.</p>
+      )}
+      {ocultas.length > 0 && (
+        <p className="tip no-print" role="status">Ocultamos {ocultas.length} {ocultas.length === 1 ? "camino" : "caminos"} que marcaste con 👎. <button type="button" className="linkbtn" onClick={mostrarOcultas}>Mostrar de nuevo</button></p>
+      )}
       {results.length === 0 && (
         <div className="empty">Todavía no encontramos coincidencias. Probá agregar palabras más concretas, como actividades, materias o cosas que hacés seguido, y volvé a intentar.</div>
       )}
@@ -300,6 +344,7 @@ function Results({ data, nota, setNota, fb, setFb, onBack, onReset }) {
               <h3>{career.nombre}</h3>
             </div>
             <div className="meter" role="img" aria-label={`Afinidad ${pct}%`}><i style={{ width: pct + "%" }} /></div>
+            {isWeak(score) && <p className="weak-tag">Coincidencia baja: agregá más palabras</p>}
             <div className="dots" role="img" aria-label={`Respaldado por ${Object.keys(hit).length} de 4 cuadrantes`}>
               {QUADRANTS.map((q) => <i key={q.id} className={hit[q.id] ? "on" : ""} style={{ "--k": q.k }} />)}
             </div>
@@ -334,6 +379,7 @@ function Results({ data, nota, setNota, fb, setFb, onBack, onReset }) {
         {results.length === n && n < 6 && <button className="btn alt" onClick={() => setN(6)}>Ver más opciones</button>}
         {results.length > 0 && <button className="btn" onClick={compartir}>Compartir</button>}
         {results.length > 0 && <button className="btn alt" onClick={() => window.print()}>Guardar como PDF</button>}
+        {(Object.keys(fb).length > 0 || sinMatch.length > 0) && <button className="btn alt" onClick={enviarFeedback}>Enviar mi feedback</button>}
         <button className="btn alt" onClick={onBack}>Editar mi mapa</button>
         <button className="btn alt" onClick={onReset}>Empezar de nuevo</button>
       </div>
@@ -354,14 +400,14 @@ export default function App() {
   useEffect(() => { window.scrollTo(0, 0); }, [screen]);
   return (
     <div className={`app ${screen === "results" ? "results" : screen === "map" ? "map" : "hero"}`}>
-      <header><div className="top">Hackatón Tecno-Productiva · Jujuy</div><div className="guarda" aria-hidden="true" /></header>
+      <header><div className="guarda" aria-hidden="true" /></header>
       <Steps screen={screen} go={setScreen} />
       <main key={screen}>
         {screen === "hero" && <Hero onStart={() => setScreen("map")} />}
         {screen === "map" && <MapScreen data={data} setData={setData} onSee={() => setScreen("results")} />}
         {screen === "results" && <Results data={data} nota={nota} setNota={setNota} fb={fb} setFb={setFb} onBack={() => setScreen("map")} onReset={() => { setData(EMPTY); setNota({}); setFb({}); setScreen("hero"); }} />}
       </main>
-      <footer><div className="guarda" aria-hidden="true" /><p>Tu mapa se guarda solo en este dispositivo</p></footer>
+      <footer><div className="guarda" aria-hidden="true" /><Donar /><p>Tu mapa se guarda solo en este dispositivo<br /><small className="firma">Creado por Flores Juan Israel</small></p></footer>
     </div>
   );
 }

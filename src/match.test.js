@@ -47,3 +47,38 @@ test("todas las áreas tienen datos completos", () => {
     assert.ok(c.claves.length >= 3, `${c.nombre}: pocas palabras clave`);
   }
 });
+
+// --- Jerga de chicos, coincidencia débil y feedback ---
+import { isWeak, unmatched } from "./match.js";
+
+test("jerga de redes: tiktok + streamer → Comunicación o Marketing", () => {
+  const r = names(map(["tiktok", "streamer"], ["editar videos"], [], ["contenido"]), 2);
+  assert.ok(r.includes("Comunicación y edición"));
+  assert.ok(r.includes("Marketing digital para emprendedores"));
+});
+test("cripto + trading → Administración y economía primero", () => {
+  assert.equal(names(map(["cripto", "trading"], ["calcular"], ["desempleo"], ["inversiones"]))[0], "Administración, contabilidad y economía");
+});
+test("plural simple: 'los perros' matchea animal", () => {
+  assert.equal(names(map(["los perros", "caballos"], ["cuidar"], ["salud rural"], ["veterinaria"]))[0], "Agro y producción agropecuaria");
+});
+test("gerundios y oficios: entrenando + entrenador → Deporte", () => {
+  assert.equal(names(map(["gym", "futbol"], ["entrenando"], [], ["entrenador"]))[0], "Deporte y educación física");
+});
+test("coincidencia baja: puntaje < 4 se marca débil", () => {
+  assert.equal(isWeak(2), true);
+  assert.equal(isWeak(4), false);
+  const r = rank(map(["series", "anime"], ["dibujar"]), 6);
+  assert.ok(r.some((x) => isWeak(x.score)), "debería haber al menos una débil");
+});
+test("unmatched devuelve solo las palabras sin ninguna coincidencia", () => {
+  assert.deepEqual(unmatched(map(["asdf", "tiktok"], ["qwerty"])), ["asdf", "qwerty"]);
+});
+test("las carreras con 👎 se excluyen del ranking", () => {
+  const d = map(["compus", "juegos"], [], [], ["programación"]);
+  assert.equal(names(d)[0], "Informática y programación");
+  const sin = rank(d, 3, { "Informática y programación": -1 }).map((r) => r.career.nombre);
+  assert.ok(!sin.includes("Informática y programación"));
+  const con = rank(d, 3, { "Informática y programación": 1 }).map((r) => r.career.nombre);
+  assert.ok(con.includes("Informática y programación"));
+});
