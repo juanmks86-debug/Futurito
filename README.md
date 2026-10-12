@@ -16,6 +16,7 @@ El CI de GitHub (`.github/workflows/ci.yml`) corre `npm test` y `npm run build` 
 - `src/match.js`: lógica de coincidencias (palabras clave, raíz de 6 letras, plural simple, errores de tipeo y sinónimos en `SYN`).
 - `src/feedback.js`: arma el texto de feedback que la persona puede enviar.
 - `src/App.jsx`: pantallas (inicio, mapa, resultados).
+- `public/sw.js` y `public/manifest.webmanifest`: modo sin conexión e instalación como app.
 
 ## Cómo funciona la búsqueda
 
@@ -49,3 +50,20 @@ El mapa, las notas y el feedback se guardan solo en el navegador de cada persona
 - Alias de Mercado Pago voluntario en el pie.
 - Tipografías incluidas en el proyecto (`@fontsource`): funcionan sin internet.
 - CI con GitHub Actions.
+
+## Cambios (revisión técnica)
+
+- **Búsqueda mucho más rápida:** el motor de coincidencias pasó de ~150 ms a ~3 ms en un mapa completo. No cambia ningún resultado: los 20 tests y una comparación de 500 mapas aleatorios lo confirman.
+- **`localStorage` con retardo:** se guarda 400 ms después del último cambio (antes se guardaba en cada tecla) y siempre al salir de la página.
+- **«Borrar mis datos»:** botón en la pantalla de resultados que saca el mapa y el aviso de bienvenida de este dispositivo.
+- **Cabeceras de seguridad** (`vercel.json`): CSP, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`.
+- **Funciona sin conexión** después de la primera visita y se puede instalar como app desde el navegador (service worker + manifest).
+- **Menos peso:** se quitó la tipografía Sora (29,9 KB, el 35 % de las fuentes); los títulos usan Montserrat.
+- **Accesibilidad:** el detalle de cada carrera atrapa el foco y lo devuelve al cerrar. Las palabras repetidas se detectan sin distinguir tildes ("musica" y "música" son la misma).
+- **CI y Dependabot** en GitHub Actions, y `engines`: Node >= 20.
+
+### Cómo probar el modo sin conexión
+
+    npm run build && npm run preview
+
+El service worker se registra solo en producción: en `npm run dev` queda desactivado a propósito para no servir versiones viejas mientras desarrollás.
