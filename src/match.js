@@ -100,12 +100,36 @@ function diversify(pool, k) {
 }
 
 const keysOf = (career) => career.claves.map((k) => { const f = norm(k).trim(); return { s: stem(f), f }; });
+// OPT: claves precalculadas una sola vez al cargar el módulo (Set de raíces + candidatas a typo).
+const CAREER_KEYS = new Map(CAREERS.map((c) => {
+  const ks = keysOf(c);
+  return [c, { stems: new Set(ks.map((k) => k.s)), typo: ks.filter((k) => k.f.length >= 6) }];
+}));
+const TOK_CACHE = new Map();
+const cachedToks = (w) => { let v = TOK_CACHE.get(w); if (v === undefined) { v = toks(w); if (TOK_CACHE.size < 1000) TOK_CACHE.set(w, v); } return v; };
 const buildEntries = (data) => {
   const entries = {};
-  QUADRANTS.forEach((q) => (entries[q.id] = (data[q.id] || []).map((w) => ({ w, t: toks(w) }))));
+  QUADRANTS.forEach((q) => (entries[q.id] = (data[q.id] || []).map((w) => ({ w, t: cachedToks(w) }))));
   return entries;
 };
-const hits = (e, keys) => e.t.some((x) => keys.some((k) => same(x, k)));
+// true si la distancia de edición es <= 1, sin construir la matriz de lev().
+function levAtMost1(a, b) {
+  const la = a.length, lb = b.length;
+  if (la === lb) {
+    let dif = 0;
+    for (let i = 0; i < la; i++) if (a[i] !== b[i] && ++dif > 1) return false;
+    return true;
+  }
+  const corta = la < lb ? a : b, larga = la < lb ? b : a;
+  if (larga.length - corta.length !== 1) return false;
+  let i = 0;
+  while (i < corta.length && corta[i] === larga[i]) i++;
+  return corta.slice(i) === larga.slice(i + 1);
+}
+// OPT: la igualdad de raíces ya cubre la palabra completa (stem es función de la palabra),
+// así que lev() solo se prueba para posibles typos.
+const hits = (e, ks) =>
+  e.t.some((x) => ks.stems.has(x.s) || (x.f.length >= 6 && ks.typo.some((k) => levAtMost1(x.f, k.f))));
 
 // Puntaje por debajo de este valor = coincidencia baja (se avisa en pantalla).
 export const WEAK_SCORE = 4;
@@ -117,12 +141,12 @@ export function rank(data, k = 3, fb = {}) {
   const entries = buildEntries(data);
   const all = CAREERS.filter((c) => fb[c.nombre] !== -1)
     .map((career) => {
-      const keys = keysOf(career);
+      const ks = CAREER_KEYS.get(career);
       const hit = {};
       let n = 0;
       QUADRANTS.forEach((q) =>
         entries[q.id].forEach((e) => {
-          if (hits(e, keys)) {
+          if (hits(e, ks)) {
             (hit[q.id] = hit[q.id] || []).push(e.w);
             n += q.w;
           }
@@ -138,12 +162,13 @@ export function rank(data, k = 3, fb = {}) {
 // Palabras escritas que no coinciden con ninguna carrera (sirve para avisar y para ampliar SYN con casos reales).
 export function unmatched(data) {
   const entries = buildEntries(data);
-  const allKeys = CAREERS.map(keysOf);
+  const allKeys = [...CAREER_KEYS.values()];
   const out = [];
   QUADRANTS.forEach((q) =>
     entries[q.id].forEach((e) => {
-      if (!allKeys.some((keys) => hits(e, keys)) && !out.includes(e.w)) out.push(e.w);
+      if (!allKeys.some((ks) => hits(e, ks)) && !out.includes(e.w)) out.push(e.w);
     })
   );
   return out;
 }
+

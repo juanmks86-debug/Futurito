@@ -202,7 +202,13 @@ function MapScreen({ data, setData, onSee }) {
   const ready = QUADRANTS.every((x) => data[x.id].length >= 1);
   const missing = QUADRANTS.filter((x) => !data[x.id].length).map((x) => x.t);
   const [party, setParty] = useState(false);
-  useEffect(() => { if (ready && !party) setParty(true); }, [ready]);
+  // La celebración se apaga sola a los 4 s: el confeti y el aviso no deben quedarse en pantalla.
+  useEffect(() => {
+    if (!ready) return;
+    setParty(true);
+    const id = setTimeout(() => setParty(false), 4000);
+    return () => clearTimeout(id);
+  }, [ready]);
   return (
     <section>
       <h2>Mi mapa de Ikigai</h2>
@@ -394,8 +400,12 @@ export default function App() {
   const [data, setData] = useState(init.data);
   const [nota, setNota] = useState(init.nota || {});
   const [fb, setFb] = useState(init.fb || {});
+  // Guarda 400 ms después del último cambio (no en cada tecla) y siempre antes de salir de la página.
   useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify({ screen, data, nota, fb })); } catch {}
+    const grabar = () => { try { localStorage.setItem(KEY, JSON.stringify({ screen, data, nota, fb })); } catch {} };
+    const id = setTimeout(grabar, 400);
+    window.addEventListener("pagehide", grabar);
+    return () => { clearTimeout(id); window.removeEventListener("pagehide", grabar); };
   }, [screen, data, nota, fb]);
   useEffect(() => { window.scrollTo(0, 0); }, [screen]);
   return (
