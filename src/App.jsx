@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { QUADRANTS, OFERTA_FECHA, EMOJI } from "./data.js";
 import { rank, unmatched, isWeak } from "./match.js";
 import { buildFeedbackText } from "./feedback.js";
@@ -9,17 +9,37 @@ const KEY = "ikigai-v2";
 const LABELS = { duracion: "Duración", modalidad: "Modalidad", ingreso: "Ingreso", becas: "Becas" };
 
 const SCREENS = ["hero", "map", "results"];
-const isStrArr = (a) => Array.isArray(a) && a.every((w) => typeof w === "string");
-// Recupera el avance guardado en este dispositivo (si existe y tiene forma válida).
+// Topes reales de la interfaz: el formulario bloquea a las 12 palabras y el input a 40 caracteres.
+const MAX_WORDS = 12;
+const MAX_LEN = 40;
+// Sanea una lista guardada: descarta lo que no sea texto y recorta a los topes.
+const cleanWords = (a) => (Array.isArray(a) ? a.filter((w) => typeof w === "string" && w.trim()).slice(0, MAX_WORDS).map((w) => w.slice(0, MAX_LEN)) : null);
+const cleanText = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+const vacio = () => ({ screen: "hero", data: EMPTY, nota: {}, fb: {} });
+
+// Recupera el avance guardado en este dispositivo, saneando todo lo que no tenga forma válida.
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
-    const dataOk = s && s.data && QUADRANTS.every((q) => isStrArr(s.data[q.id] || []));
-    const notaOk = s && s.nota && typeof s.nota === "object" && !Array.isArray(s.nota);
-    const fbOk = !s || !s.fb || (typeof s.fb === "object" && !Array.isArray(s.fb) && Object.values(s.fb).every((v) => v === 1 || v === -1));
-    if (dataOk && notaOk && fbOk && SCREENS.includes(s.screen)) return { screen: s.screen, data: { ...EMPTY, ...s.data }, nota: s.nota, fb: s.fb || {} };
+    if (!s || typeof s !== "object" || Array.isArray(s)) return vacio();
+    const data = {};
+    for (const q of QUADRANTS) {
+      const palabras = cleanWords(s.data && s.data[q.id]);
+      if (!palabras) return vacio(); // falta un cuadrante: el guardado no sirve
+      data[q.id] = palabras;
+    }
+    const notaIn = s.nota && typeof s.nota === "object" && !Array.isArray(s.nota) ? s.nota : {};
+    const fbIn = s.fb && typeof s.fb === "object" && !Array.isArray(s.fb) ? s.fb : {};
+    const fb = {};
+    for (const [nombre, v] of Object.entries(fbIn)) if (nombre.length <= 100 && (v === 1 || v === -1)) fb[nombre] = v;
+    return {
+      screen: SCREENS.includes(s.screen) ? s.screen : "hero",
+      data: { ...EMPTY, ...data },
+      nota: { camino: cleanText(notaIn.camino, 80), persona: cleanText(notaIn.persona, 80), paso: cleanText(notaIn.paso, 120) },
+      fb,
+    };
   } catch {}
-  return { screen: "hero", data: EMPTY, nota: {}, fb: {} };
+  return vacio();
 }
 
 const ICONS = {
@@ -146,15 +166,20 @@ function Hero({ onStart }) {
   );
 }
 
+// Compara palabras sin distinguir mayúsculas ni tildes: "musica" y "música" son la misma.
+const igual = (a, b) => a.localeCompare(b, "es", { sensitivity: "base" }) === 0;
+const repetida = (words, v) => words.some((w) => igual(w, v));
+
 function Quadrant({ q, words, onChange }) {
   const [text, setText] = useState("");
-  const full = words.length >= 12;
+  const full = words.length >= MAX_WORDS;
   const add = () => {
     const v = text.trim().replace(/,$/, "");
-    if (v && !words.some((w) => w.toLowerCase() === v.toLowerCase()) && !full) onChange([...words, v]);
+    if (v && !repetida(words, v) && !full) onChange([...words, v]);
     setText("");
   };
-  const sug = q.ej.filter((e) => !words.includes(e)).slice(0, 6);
+  const agregar = (e) => { if (!full && !repetida(words, e)) onChange([...words, e]); };
+  const sug = q.ej.filter((e) => !repetida(words, e)).slice(0, 6);
   return (
     <div className="q" style={{ "--k": q.k }}>
       <h3><span className="ico"><Icon id={q.id} /></span>{q.t}</h3>
@@ -168,14 +193,14 @@ function Quadrant({ q, words, onChange }) {
       </div>
       <div className="chips">
         {words.map((w, i) => (
-          <span className="chip" key={w}>{w}
+          <span className="chip" key={`${w}-${i}`}>{w}
             <button type="button" aria-label={`Quitar ${w}`} onClick={() => onChange(words.filter((_, j) => j !== i))}>×</button>
           </span>
         ))}
       </div>
       {!full && sug.length > 0 && (
         <div className="sug no-print" aria-label="Ideas para sumar">
-          {sug.map((e) => <button key={e} type="button" className="sg" onClick={() => onChange([...words, e])}>+ {e}</button>)}
+          {sug.map((e) => <button key={e} type="button" className="sg" onClick={() => agregar(e)}>+ {e}</button>)}
         </div>
       )}
     </div>
@@ -255,19 +280,36 @@ function Reflect({ results, nota, setNota }) {
   );
 }
 
+const FOCALIZABLES = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 function Detail({ r, onClose }) {
   const { career, hit } = r;
+  const ref = useRef(null);
   useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
+    const nodo = ref.current;
+    const previo = document.activeElement;
+    const primero = nodo && nodo.querySelector(FOCALIZABLES);
+    if (primero) primero.focus();
+    const h = (e) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key !== "Tab" || !nodo) return;
+      const foco = nodo.querySelectorAll(FOCALIZABLES);
+      if (!foco.length) return;
+      const ini = foco[0], fin = foco[foco.length - 1];
+      if (e.shiftKey && document.activeElement === ini) { e.preventDefault(); fin.focus(); }
+      else if (!e.shiftKey && document.activeElement === fin) { e.preventDefault(); ini.focus(); }
+    };
     window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
+    return () => {
+      window.removeEventListener("keydown", h);
+      if (previo && previo.focus) previo.focus(); // el foco vuelve a la tarjeta desde donde se abrió
+    };
   }, [onClose]);
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={career.nombre} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="detalle-titulo" ref={ref} onClick={(e) => e.stopPropagation()}>
         <div className="rh">
           <span className="emo" aria-hidden="true">{EMOJI[career.nombre]}</span>
-          <h3>{career.nombre}</h3>
+          <h3 id="detalle-titulo">{career.nombre}</h3>
         </div>
         <p className="kind">{career.fp ? "Formación profesional" : "Carreras"}: {career.tipo.replace(/^Cursos? de formación profesional: /, "")}</p>
         {career.donde && <p className="kind">Dónde estudiarla: {career.donde}</p>}
@@ -292,7 +334,7 @@ function Detail({ r, onClose }) {
   );
 }
 
-function Results({ data, nota, setNota, fb, setFb, onBack, onReset }) {
+function Results({ data, nota, setNota, fb, setFb, onBack, onReset, onBorrar }) {
   const [n, setN] = useState(3);
   // Los 👎 de antes se aplican al abrir esta pantalla (no al votar, para que la tarjeta no desaparezca de golpe).
   const [seenFb, setSeenFb] = useState(fb);
@@ -300,6 +342,7 @@ function Results({ data, nota, setNota, fb, setFb, onBack, onReset }) {
   const sinMatch = useMemo(() => unmatched(data), [data]);
   const ocultas = Object.keys(seenFb).filter((k) => seenFb[k] === -1);
   const allWeak = results.length > 0 && results.every((r) => isWeak(r.score));
+  const hayFeedback = Object.keys(fb).length > 0 || sinMatch.length > 0;
   const [note, setNote] = useState("");
   const [open, setOpen] = useState(null);
   useEffect(() => {
@@ -381,13 +424,17 @@ function Results({ data, nota, setNota, fb, setFb, onBack, onReset }) {
       })}
       {open && <Detail r={open} onClose={() => setOpen(null)} />}
       <Reflect results={results} nota={nota} setNota={setNota} />
+      {hayFeedback && (
+        <p className="tip no-print">«Enviar mi feedback» comparte tus palabras del mapa, tus votos 👍/👎 y las palabras sin coincidencia. Nada se envía solo: se abre la app que elijas y vos decidís si lo mandás.</p>
+      )}
       <div className="actions no-print">
         {results.length === n && n < 6 && <button className="btn alt" onClick={() => setN(6)}>Ver más opciones</button>}
         {results.length > 0 && <button className="btn" onClick={compartir}>Compartir</button>}
         {results.length > 0 && <button className="btn alt" onClick={() => window.print()}>Guardar como PDF</button>}
-        {(Object.keys(fb).length > 0 || sinMatch.length > 0) && <button className="btn alt" onClick={enviarFeedback}>Enviar mi feedback</button>}
+        {hayFeedback && <button className="btn alt" onClick={enviarFeedback}>Enviar mi feedback</button>}
         <button className="btn alt" onClick={onBack}>Editar mi mapa</button>
         <button className="btn alt" onClick={onReset}>Empezar de nuevo</button>
+        <button className="btn alt" onClick={onBorrar}>Borrar mis datos</button>
       </div>
       <p className="tip no-print" role="status" hidden={!note}>{note}</p>
     </section>
@@ -408,6 +455,13 @@ export default function App() {
     return () => { clearTimeout(id); window.removeEventListener("pagehide", grabar); };
   }, [screen, data, nota, fb]);
   useEffect(() => { window.scrollTo(0, 0); }, [screen]);
+  // "Empezar de nuevo" limpia el avance; "Borrar mis datos" además lo saca de este dispositivo.
+  const reiniciar = () => { setData(EMPTY); setNota({}); setFb({}); setScreen("hero"); };
+  const borrarTodo = () => {
+    if (!window.confirm("¿Borrar el mapa y todo lo guardado en este dispositivo? No se puede deshacer.")) return;
+    try { localStorage.removeItem(KEY); localStorage.removeItem(ONB); } catch {}
+    reiniciar();
+  };
   return (
     <div className={`app ${screen === "results" ? "results" : screen === "map" ? "map" : "hero"}`}>
       <header><div className="guarda" aria-hidden="true" /></header>
@@ -415,7 +469,7 @@ export default function App() {
       <main key={screen}>
         {screen === "hero" && <Hero onStart={() => setScreen("map")} />}
         {screen === "map" && <MapScreen data={data} setData={setData} onSee={() => setScreen("results")} />}
-        {screen === "results" && <Results data={data} nota={nota} setNota={setNota} fb={fb} setFb={setFb} onBack={() => setScreen("map")} onReset={() => { setData(EMPTY); setNota({}); setFb({}); setScreen("hero"); }} />}
+        {screen === "results" && <Results data={data} nota={nota} setNota={setNota} fb={fb} setFb={setFb} onBack={() => setScreen("map")} onReset={reiniciar} onBorrar={borrarTodo} />}
       </main>
       <footer><div className="guarda" aria-hidden="true" /><Donar /><p>Tu mapa se guarda solo en este dispositivo<br /><small className="firma">Creado por Flores Juan Israel</small></p></footer>
     </div>
