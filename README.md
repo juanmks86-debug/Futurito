@@ -60,6 +60,7 @@ El mapa, las notas y el feedback se guardan solo en el navegador de cada persona
 - **Funciona sin conexión** después de la primera visita y se puede instalar como app desde el navegador (service worker + manifest).
 - **Menos peso:** se quitó la tipografía Sora (29,9 KB, el 35 % de las fuentes); los títulos usan Montserrat.
 - **Accesibilidad:** el detalle de cada carrera atrapa el foco y lo devuelve al cerrar. Las palabras repetidas se detectan sin distinguir tildes ("musica" y "música" son la misma).
+- **La celebración, en el momento justo:** el confeti y el aviso aparecen al llegar a la pantalla de caminos (no al completar el mapa) y se apagan solos a los 4 segundos.
 - **CI y Dependabot** en GitHub Actions, y `engines`: Node >= 20.
 
 ### Cómo probar el modo sin conexión

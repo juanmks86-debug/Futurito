@@ -145,3 +145,19 @@ preferí no arriesgar la primera impresión por una mejora marginal.
 **No verifiqué en un navegador**: mi sandbox bloquea el build de Vite (esbuild necesita lanzar un
 proceso hijo con tuberías). Así que quedan para tu prueba visual: el modo sin conexión
 (`npm run build && npm run preview`, después desactivá la red), la instalación como app y el foco del modal.
+
+---
+
+## Cambio posterior: la celebración, al llegar a Caminos
+
+Lo pediste vos: el confeti y el aviso salían en la pantalla del **mapa** (al completar los cuatro
+cuadrantes) y se quedaban ahí. Ahora salen al entrar a la pantalla de **caminos**, que es donde termina
+el recorrido, y se apagan solos a los 4 segundos.
+
+- `MapScreen` ya no tiene el estado `party` ni el aviso: queda solo el botón «Ver mis caminos».
+- `Results` los muestra al montarse y los apaga con un `clearTimeout` en el `return` del efecto.
+- El texto del aviso pasó a «¡Llegaste a tus caminos! ✨».
+
+Verificado: los 20 tests siguen pasando, el JSX es válido y el parche
+`Confeti-en-Caminos.patch` aplica sobre la copia que ya tenías actualizada.
+
