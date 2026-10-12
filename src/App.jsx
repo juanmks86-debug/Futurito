@@ -226,14 +226,6 @@ function MapScreen({ data, setData, onSee }) {
   const total = Object.values(data).flat().length;
   const ready = QUADRANTS.every((x) => data[x.id].length >= 1);
   const missing = QUADRANTS.filter((x) => !data[x.id].length).map((x) => x.t);
-  const [party, setParty] = useState(false);
-  // La celebración se apaga sola a los 4 s: el confeti y el aviso no deben quedarse en pantalla.
-  useEffect(() => {
-    if (!ready) return;
-    setParty(true);
-    const id = setTimeout(() => setParty(false), 4000);
-    return () => clearTimeout(id);
-  }, [ready]);
   return (
     <section>
       <h2>Mi mapa de Ikigai</h2>
@@ -252,8 +244,6 @@ function MapScreen({ data, setData, onSee }) {
         <span role="status">{ready ? `${total} palabras` : `Falta: ${missing.join(" · ")}`}</span>
         <button className="btn" disabled={!ready} onClick={onSee}>Ver mis caminos</button>
       </div>
-      {party && <Confetti />}
-      {party && <p className="toast" role="status">¡Mapa completo! Ya podés ver tus caminos ✨</p>}
     </section>
   );
 }
@@ -343,6 +333,12 @@ function Results({ data, nota, setNota, fb, setFb, onBack, onReset, onBorrar }) 
   const ocultas = Object.keys(seenFb).filter((k) => seenFb[k] === -1);
   const allWeak = results.length > 0 && results.every((r) => isWeak(r.score));
   const hayFeedback = Object.keys(fb).length > 0 || sinMatch.length > 0;
+  // La celebración va acá: es el premio por llegar a los caminos, no por completar el mapa.
+  const [party, setParty] = useState(true);
+  useEffect(() => {
+    const id = setTimeout(() => setParty(false), 4000);
+    return () => clearTimeout(id);
+  }, []);
   const [note, setNote] = useState("");
   const [open, setOpen] = useState(null);
   useEffect(() => {
@@ -437,6 +433,8 @@ function Results({ data, nota, setNota, fb, setFb, onBack, onReset, onBorrar }) 
         <button className="btn alt" onClick={onBorrar}>Borrar mis datos</button>
       </div>
       <p className="tip no-print" role="status" hidden={!note}>{note}</p>
+      {party && <Confetti />}
+      {party && <p className="toast" role="status">¡Llegaste a tus caminos! ✨</p>}
     </section>
   );
 }
